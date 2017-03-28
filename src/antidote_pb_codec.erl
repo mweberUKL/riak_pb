@@ -301,7 +301,8 @@ encode_type(antidote_crdt_integer) -> 'INTEGER';
 encode_type(antidote_crdt_gmap) -> 'GMAP';
 encode_type(antidote_crdt_map_aw) -> 'AWMAP';
 encode_type(antidote_crdt_set_rw) -> 'RWSET';
-encode_type(antidote_crdt_map_rr) -> 'RRMAP'.
+encode_type(antidote_crdt_map_rr) -> 'RRMAP';
+encode_type(antidote_crdt_policy) -> 'POLICY'.
 
 
 decode_type('COUNTER') -> antidote_crdt_counter;
@@ -313,7 +314,8 @@ decode_type('INTEGER') -> antidote_crdt_integer;
 decode_type('GMAP') -> antidote_crdt_gmap;
 decode_type('AWMAP') -> antidote_crdt_map_aw;
 decode_type('RWSET') -> antidote_crdt_set_rw;
-decode_type('RRMAP') -> antidote_crdt_map_rr.
+decode_type('RRMAP') -> antidote_crdt_map_rr;
+decode_type('POLICY') -> antidote_crdt_policy.
 
 
 %%%%%%%%%%%%%%%%%%%%%%
@@ -323,7 +325,7 @@ decode_type('RRMAP') -> antidote_crdt_map_rr.
 encode_update_operation(antidote_crdt_counter, Op_Param) ->
   #apbupdateoperation{counterop = encode_counter_update(Op_Param)};
 encode_update_operation(antidote_crdt_fat_counter, Op_Param) ->
-  #apbupdateoperation{counterop = encode_counter_update(Op_Param)};  
+  #apbupdateoperation{counterop = encode_counter_update(Op_Param)};
 encode_update_operation(antidote_crdt_orset, Op_Param) ->
   #apbupdateoperation{setop = encode_set_update(Op_Param)};
 encode_update_operation(antidote_crdt_set_rw, Op_Param) ->
@@ -339,7 +341,9 @@ encode_update_operation(antidote_crdt_gmap, Op_Param) ->
 encode_update_operation(antidote_crdt_map_aw, Op_Param) ->
   #apbupdateoperation{mapop = encode_map_update(Op_Param)};
 encode_update_operation(antidote_crdt_map_rr, Op_Param) ->
-  #apbupdateoperation{mapop = encode_map_update(Op_Param)};  
+  #apbupdateoperation{mapop = encode_map_update(Op_Param)};
+encode_update_operation(antidote_crdt_policy, Op_Param) ->
+  #apbupdateoperation{policyop = encode_policy_update(Op_Param)};
 encode_update_operation(Type, _Op) ->
   throw({invalid_type, Type}).
 
@@ -352,7 +356,9 @@ decode_update_operation(#apbupdateoperation{regop = Op}) when Op /= undefined ->
 decode_update_operation(#apbupdateoperation{integerop = Op}) when Op /= undefined ->
   decode_integer_update(Op);
 decode_update_operation(#apbupdateoperation{mapop = Op}) when Op /= undefined ->
-  decode_map_update(Op).
+  decode_map_update(Op);
+decode_update_operation(#apbupdateoperation{policyop = Op}) when Op /= undefined ->
+  decode_policy_update(Op).
 
 %%decode_update_operation(#apbupdateoperation{mapop = Op}) when Op /= undefined ->
 %%  decode_map_update(Op);
@@ -371,7 +377,7 @@ encode_read_object_resp(antidote_crdt_mvreg, Vals) ->
 encode_read_object_resp(antidote_crdt_counter, Val) ->
     #apbreadobjectresp{counter=#apbgetcounterresp{value=Val}};
 encode_read_object_resp(antidote_crdt_fat_counter, Val) ->
-    #apbreadobjectresp{counter=#apbgetcounterresp{value=Val}};    
+    #apbreadobjectresp{counter=#apbgetcounterresp{value=Val}};
 encode_read_object_resp(antidote_crdt_orset, Val) ->
     #apbreadobjectresp{set=#apbgetsetresp{value=Val}};
 encode_read_object_resp(antidote_crdt_set_rw, Val) ->
@@ -383,7 +389,9 @@ encode_read_object_resp(antidote_crdt_gmap, Val) ->
 encode_read_object_resp(antidote_crdt_map_aw, Val) ->
     #apbreadobjectresp{map = encode_map_get_resp(Val)};
 encode_read_object_resp(antidote_crdt_map_rr, Val) ->
-    #apbreadobjectresp{map = encode_map_get_resp(Val)}.
+    #apbreadobjectresp{map = encode_map_get_resp(Val)};
+  encode_read_object_resp(antidote_crdt_policy, Val) ->
+      #apbreadobjectresp{policy = #apbgetpolicyresp{permissions=Val}}.
 
 % TODO why does this use counter instead of antidote_crdt_counter etc.?
 decode_read_object_resp(#apbreadobjectresp{counter = #apbgetcounterresp{value = Val}}) ->
@@ -396,6 +404,8 @@ decode_read_object_resp(#apbreadobjectresp{mvreg = #apbgetmvregresp{values = Val
     {mvreg, Vals};
 decode_read_object_resp(#apbreadobjectresp{int = #apbgetintegerresp{value = Val}}) ->
     {integer, Val};
+decode_read_object_resp(#apbreadobjectresp{policy = #apbgetpolicyresp{permissions = Vals}}) ->
+    {policy, Vals};
 decode_read_object_resp(#apbreadobjectresp{map = MapResp=#apbgetmapresp{}}) ->
     {map, decode_map_get_resp(MapResp)}.
 
@@ -456,6 +466,17 @@ encode_reg_update(Update) ->
 
 decode_reg_update(Update) ->
   #apbregupdate{value = Value} = Update,
+  {assign, Value}.
+
+% policy updates
+
+encode_policy_update(Update) ->
+  {assign, Value} = Update,
+  #apbpolicyupdate{permissions = Value}.
+
+
+decode_policy_update(Update) ->
+  #apbpolicyupdate{permissions = Value} = Update,
   {assign, Value}.
 
 % integer updates
@@ -660,6 +681,10 @@ crdt_encode_decode_test() ->
   ?TestCrdtOperationCodec(antidote_crdt_mvreg, assign, <<"hello">>),
   ?TestCrdtResponseCodec(antidote_crdt_mvreg, mvreg, [<<"a">>, <<"b">>, <<"c">>]),
 
+  % policy
+  ?TestCrdtOperationCodec(antidote_crdt_policy, assign, [<<"a">>, <<"b">>, <<"c">>]),
+  ?TestCrdtResponseCodec(antidote_crdt_policy, policy, [<<"a">>, <<"b">>, <<"c">>]),
+
   % set
   ?TestCrdtOperationCodec(antidote_crdt_orset, add, <<"hello">>),
   ?TestCrdtOperationCodec(antidote_crdt_orset, add_all, [<<"a">>, <<"b">>, <<"c">>]),
@@ -714,7 +739,3 @@ crdt_encode_decode_test() ->
 
 
 -endif.
-
-
-
-
