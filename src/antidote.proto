@@ -14,6 +14,7 @@ enum CRDT_type {
     RWSET = 10;
     RRMAP = 11;
     FATCOUNTER = 12;
+    POLICY = 13;
 }
 
 
@@ -73,6 +74,18 @@ message ApbGetRegResp {
 // response:
 message ApbGetMVRegResp {
     repeated bytes values = 1;
+}
+
+
+//------------------
+// Policy
+
+message ApbPolicyUpdate {
+  repeated bytes permissions = 1;
+}
+
+message ApbGetPolicyResp {
+  repeated bytes permissions = 1;
 }
 
 //------------------
@@ -165,6 +178,7 @@ message ApbUpdateOperation { // TODO use this above
     optional ApbIntegerUpdate integerop = 4;
     optional ApbMapUpdate mapop = 5;
     optional ApbCrdtReset resetop = 6;
+    optional ApbPolicyUpdate policyop = 7;
 }
 
 // Objects to be updated
@@ -216,6 +230,7 @@ message ApbReadObjectResp {
     optional ApbGetMVRegResp mvreg = 4;
     optional ApbGetIntegerResp int = 5;
     optional ApbGetMapResp map = 6;
+    optional ApbGetPolicyResp policy = 7;
 }
 message ApbReadObjectsResp {
     required bool success = 1;
